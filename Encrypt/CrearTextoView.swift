@@ -11,8 +11,7 @@ struct CrearTextoView: View {
     @State private var textos: [TextoSimple] = []
     @State private var mostrarFormulario = false
     @State private var mostrarLector = false
-    @State private var notaEditando: TextoSimple? = nil
-    @State private var contenidoEditando: String = ""
+    @State private var notaParaEditar: NotaParaEditar? = nil
     @State private var notaLeyendo: TextoSimple? = nil
     @State private var contenidoLeyendo: String = ""
     @State private var notaSeleccionadaParaCifrar: TextoSimple? = nil
@@ -28,9 +27,7 @@ struct CrearTextoView: View {
                     .font(.title2).bold()
                 Spacer()
                 Button(action: {
-                    notaEditando = nil
-                    contenidoEditando = ""
-                    mostrarFormulario = true
+                    notaParaEditar = NotaParaEditar(nota: TextoSimple(nombre: "", url: folder.appendingPathComponent(""), fecha: Date()), contenido: "")
                 }) {
                     Image(systemName: "plus.circle.fill")
                         .resizable()
@@ -85,16 +82,25 @@ struct CrearTextoView: View {
         .onAppear(perform: cargarNotas)
 
         // Editor
-        .sheet(isPresented: $mostrarFormulario) {
+        .sheet(item: $notaParaEditar) { item in
             EditorTextoView(
-                nombreInicial: notaEditando?.nombre ?? "",
-                contenidoInicial: contenidoEditando,
-                onGuardar: { nombre, contenido in
-                    let url = folder.appendingPathComponent("\(nombre).txt")
+                nombreInicial: item.nota.nombre,
+                contenidoInicial: item.contenido,
+                onGuardar: { nuevoNombre, nuevoContenido in
+                    guard var notaActual = notaParaEditar?.nota else { return }
+                    let urlOriginal = notaActual.url
+                    let urlNuevo = folder.appendingPathComponent("\(nuevoNombre).txt")
+
                     do {
-                        try contenido.write(to: url, atomically: true, encoding: .utf8)
+                        // Si el nombre cambió, elimina el archivo anterior
+                        if urlOriginal.lastPathComponent != urlNuevo.lastPathComponent {
+                            try? FileManager.default.removeItem(at: urlOriginal)
+                        }
+
+                        // Escribe el nuevo contenido en la nueva ruta
+                        try nuevoContenido.write(to: urlNuevo, atomically: true, encoding: .utf8)
                         cargarNotas()
-                        mostrarFormulario = false
+                        notaParaEditar = nil
                     } catch {
                         print("❌ Error al guardar nota: \(error)")
                     }
@@ -123,16 +129,19 @@ struct CrearTextoView: View {
         }
 
         // Sheet para cifrado con interfaz avanzada
-        .sheet(isPresented: $mostrarSheetCifrado) {
-            if let nota = notaSeleccionadaParaCifrar {
-                SheetFormularioCifrado(
-                    archivoURL: nota.url,
-                    onFinish: { _ in
-                        mostrarSheetCifrado = false
-                    },
-                    isPresented: $mostrarSheetCifrado
+        .sheet(item: $notaSeleccionadaParaCifrar) { nota in
+            SheetFormularioCifrado(
+                archivoURL: nota.url,
+                onFinish: { _ in
+                    notaSeleccionadaParaCifrar = nil
+                },
+                isPresented: Binding(
+                    get: { notaSeleccionadaParaCifrar != nil },
+                    set: { newValue in
+                        if !newValue { notaSeleccionadaParaCifrar = nil }
+                    }
                 )
-            }
+            )
         }
     }
 
@@ -152,13 +161,12 @@ struct CrearTextoView: View {
     func editarNota(_ nota: TextoSimple) {
         do {
             let contenido = try String(contentsOf: nota.url, encoding: .utf8)
-            notaEditando = nota
-            contenidoEditando = contenido
-            mostrarFormulario = true
+            notaParaEditar = NotaParaEditar(nota: nota, contenido: contenido)
         } catch {
             print("❌ Error leyendo nota: \(error)")
         }
     }
+
 
     func leerNota(_ nota: TextoSimple) {
         do {
@@ -185,4 +193,10 @@ struct CrearTextoView: View {
         formatter.timeStyle = .short
         return formatter.string(from: date)
     }
+}
+
+struct NotaParaEditar: Identifiable {
+    let id = UUID()
+    let nota: TextoSimple
+    let contenido: String
 }
