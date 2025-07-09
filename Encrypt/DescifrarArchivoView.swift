@@ -383,15 +383,22 @@ struct SheetDescifrarArchivoView: View {
 
             // 2. Guardar el archivo cifrado original en archivos_cifrados como recibido
             let cifradoNombre = url.lastPathComponent
-            let recibido = ArchivoCifrado(nombre: cifradoNombre, fecha: Date(), esRecibido: true)
 
+            // Cargar archivos cifrados existentes
             var existentes = (try? UserDefaults.standard.data(forKey: "archivos_cifrados"))
                 .flatMap { try? JSONDecoder().decode([ArchivoCifrado].self, from: $0) } ?? []
 
-            existentes.append(recibido)
+            // Verificar si ya existe uno con ese nombre (no importa si es recibido o no)
+            let yaRegistrado = existentes.contains { $0.nombre == cifradoNombre }
 
-            if let data = try? JSONEncoder().encode(existentes) {
-                UserDefaults.standard.set(data, forKey: "archivos_cifrados")
+            // Solo agregar si no existe aún
+            if !yaRegistrado {
+                let recibido = ArchivoCifrado(nombre: cifradoNombre, fecha: Date(), esRecibido: true)
+                existentes.append(recibido)
+
+                if let data = try? JSONEncoder().encode(existentes) {
+                    UserDefaults.standard.set(data, forKey: "archivos_cifrados")
+                }
             }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {

@@ -33,6 +33,7 @@ struct CifrarArchivoView: View {
     @State private var archivoSeleccionadoParaDetalle: ArchivoDetalle? = nil
     @State private var archivoParaDescifrar: URL? = nil
     @State private var mostrarFormulario = false
+    @State private var modo = 0
     
     let storageKey = "archivos_cifrados"
     
@@ -52,25 +53,66 @@ struct CifrarArchivoView: View {
                 }
             }
             .padding(.horizontal)
-            
-            List {
-                if archivos.contains(where: { !$0.esRecibido }) {
-                    Section(header: Text("Mis archivos")) {
-                        ForEach(archivos.filter { !$0.esRecibido }) { archivo in
-                            filaArchivo(archivo)
-                        }
-                    }
-                }
 
-                if archivos.contains(where: { $0.esRecibido }) {
-                    Section(header: Text("Recibidos y descifrados")) {
-                        ForEach(archivos.filter { $0.esRecibido }) { archivo in
-                            filaArchivo(archivo)
+            Picker("Modo", selection: $modo) {
+                Text("Mis archivos").tag(0)
+                Text("Recibidos").tag(1)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding(.horizontal)
+
+            List {
+                ForEach(archivos.filter { $0.esRecibido == (modo == 1) }) { archivo in
+                    HStack {
+                        Image(systemName: "lock.doc.fill")
+                            .foregroundColor(archivo.esRecibido ? .gray : .orange)
+                            .padding(.trailing, 4)
+
+                        VStack(alignment: .leading) {
+                            Text(archivo.nombre)
+                                .bold()
+                                .lineLimit(2)
+                            Text("Cifrado el \(formatDate(archivo.fecha))")
+                                .font(.caption)
+                                .foregroundColor(.gray)
                         }
+
+                        Spacer()
+                        Image(systemName: "chevron.left")
+                            .foregroundColor(.gray)
+                            .rotationEffect(.degrees(180))
+                            .padding(.trailing, 6)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        let directorio = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("Encrypt_iOS")
+                        let url = directorio.appendingPathComponent(archivo.nombre)
+                        archivoSeleccionadoParaDetalle = ArchivoDetalle(url: url)
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            eliminarArchivo(archivo)
+                        } label: {
+                            Label("Eliminar", systemImage: "trash")
+                        }
+
+                        Button {
+                            compartirArchivoDesdeListado(archivo)
+                        } label: {
+                            Label("Compartir", systemImage: "square.and.arrow.up")
+                        }
+                        .tint(.blue)
+
+                        Button {
+                            descargarArchivo(archivo)
+                        } label: {
+                            Label("Descargar", systemImage: "arrow.down.circle")
+                        }
+                        .tint(.green)
                     }
                 }
             }
-            
+
             Text(mensaje)
                 .foregroundColor(.green)
                 .padding(.top, 10)

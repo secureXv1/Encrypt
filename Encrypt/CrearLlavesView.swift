@@ -37,6 +37,7 @@ struct CrearLlavesView: View {
     @State private var mostrarImportador = false
     @State private var urlsImportar: [URL] = []
     @State private var mostrarSelectorArchivo = false
+    @State private var modo = 0 // 0 = creadas, 1 = importadas
 
     let storageKey = "rsa_keys"
 
@@ -55,21 +56,16 @@ struct CrearLlavesView: View {
             }
             .padding(.horizontal)
 
-            List {
-                if !llaves.filter({ !$0.esImportada }).isEmpty {
-                    Section(header: Text("Llaves creadas")) {
-                        ForEach(llaves.filter { !$0.esImportada }.sorted(by: { $0.createdAt > $1.createdAt })) { key in
-                            celdaLlave(key)
-                        }
-                    }
-                }
+            Picker("Tipo", selection: $modo) {
+                Text("Generadas").tag(0)
+                Text("Importadas").tag(1)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding(.horizontal)
 
-                if !llaves.filter({ $0.esImportada }).isEmpty {
-                    Section(header: Text("Llaves importadas")) {
-                        ForEach(llaves.filter { $0.esImportada }.sorted(by: { $0.createdAt > $1.createdAt })) { key in
-                            celdaLlave(key)
-                        }
-                    }
+            List {
+                ForEach(llaves.filter { $0.esImportada == (modo == 1) }.sorted(by: { $0.createdAt > $1.createdAt })) { key in
+                    celdaLlave(key)
                 }
             }
             Text(mensaje)
