@@ -24,8 +24,9 @@ struct EncryptionPanelView: View {
     var body: some View {
         GeometryReader { geo in
             HStack(spacing: 0) {
-                VStack {
-                    Spacer()
+                ZStack(alignment: .top) {
+                    Color(.systemGray6)
+
                     VStack(spacing: 20) {
                         ForEach(Opcion.allCases) { opcion in
                             Button(action: {
@@ -42,16 +43,17 @@ struct EncryptionPanelView: View {
                                         .multilineTextAlignment(.center)
                                         .foregroundColor(seleccion == opcion ? Color(hex: "#00BCD4") : .gray)
                                         .frame(width: 60)
-                                    
                                 }
                             }
                             .padding(.vertical, 10)
                         }
+
+                        Spacer()
                     }
-                    Spacer()
+                    .padding(.top, 16) // Espacio bajo la barra de estado
                 }
                 .frame(width: geo.size.width * 0.2)
-                .background(Color(.systemGray6))
+                .ignoresSafeArea(edges: .bottom)
 
                 Divider()
 

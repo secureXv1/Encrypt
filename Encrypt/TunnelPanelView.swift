@@ -16,60 +16,58 @@ struct TunnelPanelView: View {
     @State private var tunnelId: Int? = nil
     @State private var showCrear = false
     @State private var showConectar = false
+    @State private var modo = 0 // 0 = Mis túneles, 1 = Recientes
 
     let uuid = ClientService.shared.getOrCreateUUID()
 
     var body: some View {
-        NavigationView {
-            VStack {
-                List {
-                    if !misTuneles.isEmpty {
-                        Section(header: Text("🟦 Mis Túneles")) {
-                            ForEach(misTuneles) { tunel in
-                                TunnelCard(tunnel: tunel) {
-                                    selectedTunnel = tunel
-                                    showPasswordPrompt = true
-                                }
-                            }
-                        }
-                    }
-                    
-                    if !recientes.isEmpty {
-                        Section(header: Text("🟩 Conexiones Recientes")) {
-                            ForEach(recientes) { tunel in
-                                TunnelCard(tunnel: tunel) {
-                                    selectedTunnel = tunel
-                                    showPasswordPrompt = true
-                                }
-                            }
-                        }
-                    }
-                }
-                .listStyle(InsetGroupedListStyle())
-                .navigationTitle("Túneles")
-                .onAppear(perform: cargarTuneles)
-                .sheet(isPresented: $showPasswordPrompt) {
-                    if let tunel = selectedTunnel {
-                        PasswordPromptView(tunnel: tunel, onJoin: { pass, aliasInput in
-                            self.password = pass
-                            self.alias = aliasInput
-                            self.joinTunnel(tunnelId: tunel.id)
-                        })
-                    }
-                }
-
-                NavigationLink(destination: ChatTunnelView(tunnelId: tunnelId ?? 0, alias: alias), isActive: $navigateToChat) {
-                    EmptyView()
-                }
-            }
-            .toolbar {
+        VStack {
+            // Encabezado personalizado como en EncryptionPanelView
+            HStack {
+                Text("Túneles")
+                    .font(.title2).bold()
+                Spacer()
                 Menu {
                     Button("Crear Túnel") { showCrear = true }
                     Button("Conectar Manualmente") { showConectar = true }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .imageScale(.large)
+                    Image(systemName: "plus.circle.fill")
+                        .resizable()
+                        .frame(width: 28, height: 28)
+                        .foregroundColor(.blue)
                 }
+            }
+            .padding(.horizontal)
+
+            // Selector tipo pestaña
+            Picker("Modo", selection: $modo) {
+                Text("Mis túneles").tag(0)
+                Text("Recientes").tag(1)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding(.horizontal)
+
+            // Lista
+            List {
+                let tuneles = modo == 0 ? misTuneles : recientes
+
+                ForEach(tuneles) { tunel in
+                    TunnelCard(tunnel: tunel) {
+                        selectedTunnel = tunel
+                        showPasswordPrompt = true
+                    }
+                }
+            }
+            .listStyle(PlainListStyle())
+            .onAppear(perform: cargarTuneles)
+        }
+        .sheet(isPresented: $showPasswordPrompt) {
+            if let tunel = selectedTunnel {
+                PasswordPromptView(tunnel: tunel, onJoin: { pass, aliasInput in
+                    self.password = pass
+                    self.alias = aliasInput
+                    self.joinTunnel(tunnelId: tunel.id)
+                })
             }
         }
         .sheet(isPresented: $showCrear) {
@@ -78,6 +76,11 @@ struct TunnelPanelView: View {
         .sheet(isPresented: $showConectar) {
             ConectarTunelView()
         }
+        .background(
+            NavigationLink(destination: ChatTunnelView(tunnelId: tunnelId ?? 0, alias: alias), isActive: $navigateToChat) {
+                EmptyView()
+            }
+        )
     }
 
     func cargarTuneles() {

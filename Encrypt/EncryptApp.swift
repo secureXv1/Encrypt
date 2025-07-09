@@ -2,6 +2,18 @@ import SwiftUI
 
 @main
 struct EndCryptApp: App {
+
+    init() {
+        let appearance = UITabBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor.systemBackground // o usa UIColor.white o UIColor(named: "TuColor")
+        
+        UITabBar.appearance().standardAppearance = appearance
+        if #available(iOS 15.0, *) {
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             MainTabView()
@@ -31,6 +43,7 @@ struct MainTabView: View {
             
         }
         .accentColor(Color(hex: "#00BCD4"))
+        .background(Color(.systemBackground)) 
     }
 }
 
