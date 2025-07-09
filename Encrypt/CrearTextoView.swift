@@ -16,6 +16,8 @@ struct CrearTextoView: View {
     @State private var contenidoLeyendo: String = ""
     @State private var notaSeleccionadaParaCifrar: TextoSimple? = nil
     @State private var mostrarSheetCifrado = false
+    @State private var mostrarAlertaNombreExistente = false
+    @State private var mensajeAlerta = ""
     
     let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
 
@@ -27,7 +29,7 @@ struct CrearTextoView: View {
                     .font(.title2).bold()
                 Spacer()
                 Button(action: {
-                    notaParaEditar = NotaParaEditar(nota: TextoSimple(nombre: "", url: folder.appendingPathComponent(""), fecha: Date()), contenido: "")
+                    notaParaEditar = NotaParaEditar(nota: nil, contenido: "")
                 }) {
                     Image(systemName: "plus.circle.fill")
                         .resizable()
@@ -79,20 +81,36 @@ struct CrearTextoView: View {
         // Editor
         .sheet(item: $notaParaEditar) { item in
             EditorTextoView(
-                nombreInicial: item.nota.nombre,
+                nombreInicial: item.nota?.nombre.replacingOccurrences(of: ".txt", with: "") ?? "",
                 contenidoInicial: item.contenido,
                 onGuardar: { nuevoNombre, nuevoContenido in
-                    guard var notaActual = notaParaEditar?.nota else { return }
-                    let urlOriginal = notaActual.url
                     let nombreFinal = nuevoNombre.hasSuffix(".txt") ? nuevoNombre : "\(nuevoNombre).txt"
                     let urlNuevo = folder.appendingPathComponent(nombreFinal)
 
-
-                    do {
-                        if urlOriginal.lastPathComponent != urlNuevo.lastPathComponent {
-                            try? FileManager.default.removeItem(at: urlOriginal)
+                    // ⚠️ Si estamos editando una nota existente
+                    if let notaExistente = item.nota {
+                        // Si cambió el nombre, verificar si ya existe otro archivo con ese nombre
+                        if notaExistente.url.lastPathComponent != nombreFinal,
+                           FileManager.default.fileExists(atPath: urlNuevo.path) {
+                            mensajeAlerta = "Ya existe una nota con ese nombre."
+                            mostrarAlertaNombreExistente = true
+                            return
                         }
 
+                        // Si cambió el nombre, eliminar la anterior
+                        if notaExistente.url != urlNuevo {
+                            try? FileManager.default.removeItem(at: notaExistente.url)
+                        }
+                    } else {
+                        // Es una nueva nota, validar si ya existe
+                        if FileManager.default.fileExists(atPath: urlNuevo.path) {
+                            mensajeAlerta = "Ya existe una nota con ese nombre."
+                            mostrarAlertaNombreExistente = true
+                            return
+                        }
+                    }
+
+                    do {
                         try nuevoContenido.write(to: urlNuevo, atomically: true, encoding: .utf8)
                         cargarNotas()
                         notaParaEditar = nil
@@ -101,15 +119,33 @@ struct CrearTextoView: View {
                     }
                 },
                 onCifrar: { nombre, contenido in
-                    // Guarda primero si hace falta
                     let nombreFinal = nombre.hasSuffix(".txt") ? nombre : "\(nombre).txt"
                     let url = folder.appendingPathComponent(nombreFinal)
+
+                    if let notaExistente = item.nota {
+                        if notaExistente.url.lastPathComponent != nombreFinal,
+                           FileManager.default.fileExists(atPath: url.path) {
+                            mensajeAlerta = "Ya existe una nota con ese nombre."
+                            mostrarAlertaNombreExistente = true
+                            return
+                        }
+
+                        if notaExistente.url != url {
+                            try? FileManager.default.removeItem(at: notaExistente.url)
+                        }
+                    } else {
+                        if FileManager.default.fileExists(atPath: url.path) {
+                            mensajeAlerta = "Ya existe una nota con ese nombre."
+                            mostrarAlertaNombreExistente = true
+                            return
+                        }
+                    }
+
                     do {
                         try contenido.write(to: url, atomically: true, encoding: .utf8)
                         cargarNotas()
                         notaParaEditar = nil
-                        // Luego dispara la acción de cifrado
-                        notaSeleccionadaParaCifrar = TextoSimple(nombre: nombre, url: url, fecha: Date())
+                        notaSeleccionadaParaCifrar = TextoSimple(nombre: nombreFinal, url: url, fecha: Date())
                         mostrarSheetCifrado = true
                     } catch {
                         print("❌ Error al guardar nota para cifrar: \(error)")
@@ -150,6 +186,13 @@ struct CrearTextoView: View {
                         if !newValue { notaSeleccionadaParaCifrar = nil }
                     }
                 )
+            )
+        }
+        .alert(isPresented: $mostrarAlertaNombreExistente) {
+            Alert(
+                title: Text("Nombre en uso"),
+                message: Text(mensajeAlerta),
+                dismissButton: .default(Text("OK"))
             )
         }
     }
@@ -206,6 +249,7 @@ struct CrearTextoView: View {
 
 struct NotaParaEditar: Identifiable {
     let id = UUID()
-    let nota: TextoSimple
+    let nota: TextoSimple? // Puede ser nil al crear nueva nota
     let contenido: String
 }
+
