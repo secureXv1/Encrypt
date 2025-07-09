@@ -294,7 +294,7 @@ struct SheetFormularioCifrado: View {
             // Guardar archivo en Documents/Encrypt_iOS
             let outDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("Encrypt_iOS")
             try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
-            let name = archivoURL.deletingPathExtension().lastPathComponent + "_Cif.json"
+            let name = archivoURL.deletingPathExtension().lastPathComponent + ".json"
             let path = outDir.appendingPathComponent(name)
             let data = try JSONSerialization.data(withJSONObject: json, options: .prettyPrinted)
             try data.write(to: path)

@@ -6,9 +6,17 @@ import UIKit
 import QuickLook
 
 struct ArchivoCifrado: Identifiable, Codable {
-    let id = UUID()
+    let id: UUID
     let nombre: String
     let fecha: Date
+    let esRecibido: Bool
+
+    init(nombre: String, fecha: Date, esRecibido: Bool = false) {
+        self.id = UUID()
+        self.nombre = nombre
+        self.fecha = fecha
+        self.esRecibido = esRecibido
+    }
 }
 
 struct CifrarArchivoView: View {
@@ -22,6 +30,9 @@ struct CifrarArchivoView: View {
     @State private var archivoSeleccionado: ArchivoCifrado? = nil
     @State private var archivoOculto: URL?
     @State private var mostrarCompartir = false
+    @State private var archivoSeleccionadoParaDetalle: ArchivoDetalle? = nil
+    @State private var archivoParaDescifrar: URL? = nil
+    @State private var mostrarFormulario = false
     
     let storageKey = "archivos_cifrados"
     
@@ -43,64 +54,19 @@ struct CifrarArchivoView: View {
             .padding(.horizontal)
             
             List {
-                ForEach(archivos) { archivo in
-                    Button {
-                        let directorio = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("Encrypt_iOS")
-                        let url = directorio.appendingPathComponent(archivo.nombre)
-                        if FileManager.default.fileExists(atPath: url.path) {
-                            archivoParaVistaPrevia = url
-                        } else {
-                            mensaje = "❌ No se encontró el archivo para vista previa."
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "doc.text.fill")
-                                .foregroundColor(.blue)
-                                .padding(.trailing, 4)
-                            
-                            VStack(alignment: .leading) {
-                                Text(archivo.nombre)
-                                    .bold()
-                                    .lineLimit(2)
-                                    .truncationMode(.tail) // corta al final con "..."
-                                Text("Cifrado el \(formatDate(archivo.fecha))")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                            
-                            Spacer()
-                            
-                            Image(systemName: "chevron.left")
-                                .foregroundColor(.gray)
-                                .rotationEffect(.degrees(180))
-                                .padding(.trailing, 6)
+                if archivos.contains(where: { !$0.esRecibido }) {
+                    Section(header: Text("Mis archivos")) {
+                        ForEach(archivos.filter { !$0.esRecibido }) { archivo in
+                            filaArchivo(archivo)
                         }
                     }
-                    .buttonStyle(PlainButtonStyle()) // para que no se vea como botón azul
-                    
-                    .onTapGesture {
-                        let directorio = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("Encrypt_iOS")
-                        let url = directorio.appendingPathComponent(archivo.nombre)
-                        
-                        if FileManager.default.fileExists(atPath: url.path) {
-                            archivoParaVistaPrevia = url
-                        } else {
-                            mensaje = "❌ No se encontró el archivo."
+                }
+
+                if archivos.contains(where: { $0.esRecibido }) {
+                    Section(header: Text("Recibidos y descifrados")) {
+                        ForEach(archivos.filter { $0.esRecibido }) { archivo in
+                            filaArchivo(archivo)
                         }
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            eliminarArchivo(archivo)
-                        } label: {
-                            Label("Eliminar", systemImage: "trash")
-                        }
-                        
-                        Button {
-                            compartirArchivoDesdeListado(archivo)
-                        } label: {
-                            Label("Compartir", systemImage: "square.and.arrow.up")
-                        }
-                        .tint(.blue)
                     }
                 }
             }
@@ -121,6 +87,24 @@ struct CifrarArchivoView: View {
                 isPresented: .constant(true)
             )
         }
+        .sheet(item: $archivoSeleccionadoParaDetalle) { detalle in
+            DetalleArchivoCifradoView(url: detalle.url) {
+                archivoParaDescifrar = detalle.url
+                archivoSeleccionadoParaDetalle = nil
+            }
+            .presentationDetents([.medium]) // o [.height(300)] en iOS 16.4+
+            .presentationDragIndicator(.visible) // opcional, muestra línea superior
+        }
+        .sheet(item: $archivoParaDescifrar) { url in
+            SheetDescifrarArchivoView(
+                archivo: url,  // ✅ este URL se usará directamente
+                onDescifrado: { nuevoArchivo in
+                    // Puedes agregar lógica para notificar
+                    print("✅ Archivo descifrado: \(nuevoArchivo.nombre)")
+                }
+            )
+        }
+
         .fileImporter(
             isPresented: $mostrarImportador,
             allowedContentTypes: [.data],
@@ -208,6 +192,57 @@ struct CifrarArchivoView: View {
         }
     }
     
+    func filaArchivo(_ archivo: ArchivoCifrado) -> some View {
+        HStack {
+            Image(systemName: "lock.doc.fill")
+                .foregroundColor(archivo.esRecibido ? .gray : .orange)
+                .padding(.trailing, 4)
+
+            VStack(alignment: .leading) {
+                Text(archivo.nombre)
+                    .bold()
+                    .lineLimit(2)
+                Text("Cifrado el \(formatDate(archivo.fecha))")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+
+            Spacer()
+            Image(systemName: "chevron.left")
+                .foregroundColor(.gray)
+                .rotationEffect(.degrees(180))
+                .padding(.trailing, 6)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            let directorio = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("Encrypt_iOS")
+            let url = directorio.appendingPathComponent(archivo.nombre)
+            archivoSeleccionadoParaDetalle = ArchivoDetalle(url: url)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                eliminarArchivo(archivo)
+            } label: {
+                Label("Eliminar", systemImage: "trash")
+            }
+
+            Button {
+                compartirArchivoDesdeListado(archivo)
+            } label: {
+                Label("Compartir", systemImage: "square.and.arrow.up")
+            }
+            .tint(.blue)
+
+            Button {
+                descargarArchivo(archivo)
+            } label: {
+                Label("Descargar", systemImage: "arrow.down.circle")
+            }
+            .tint(.green)
+        }
+    }
+
+    
     func compartirSinOcultar(_ archivo: ArchivoCifrado) {
         let directorio = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("Encrypt_iOS")
         let url = directorio.appendingPathComponent(archivo.nombre)
@@ -258,7 +293,25 @@ struct CifrarArchivoView: View {
             rootVC.present(activityVC, animated: true, completion: nil)
         }
     }
-    
+    func descargarArchivo(_ archivo: ArchivoCifrado) {
+        let origen = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Encrypt_iOS")
+            .appendingPathComponent(archivo.nombre)
+
+        guard FileManager.default.fileExists(atPath: origen.path) else {
+            mensaje = "❌ No se encontró el archivo."
+            return
+        }
+
+        // Exportar sin mover (permite al usuario elegir dónde guardar)
+        let picker = UIDocumentPickerViewController(forExporting: [origen], asCopy: true)
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            rootVC.present(picker, animated: true, completion: nil)
+            mensaje = "📤 Selecciona dónde guardar"
+        }
+    }
 }
 
 
@@ -326,4 +379,63 @@ struct FilePreview: UIViewControllerRepresentable {
 
 extension URL: Identifiable {
     public var id: String { self.path }
+}
+
+struct DetalleArchivoCifradoView: View {
+    let url: URL
+    let onDescifrar: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("📄 Nombre: \(url.lastPathComponent)")
+            Text("📅 Fecha: \(formatDate(getFileDate()))")
+            Text("🔐 Tipo: \(tipoDeCifrado())")
+            Text("📦 Tamaño: \(formatSize(getFileSize()))")
+
+            Spacer()
+
+            Button("Descifrar archivo") {
+                onDescifrar()
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .cornerRadius(10)
+        }
+        .padding()
+    }
+
+    func getFileDate() -> Date {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.creationDate] as? Date) ?? Date()
+    }
+
+    func getFileSize() -> Int64 {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+    }
+
+    func formatSize(_ size: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+    }
+
+    func tipoDeCifrado() -> String {
+        if let data = try? Data(contentsOf: url),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let tipo = json["type"] as? String {
+            return tipo == "password" ? "Contraseña" : "Llave pública"
+        }
+        return "Desconocido"
+    }
+
+    func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+}
+
+struct ArchivoDetalle: Identifiable {
+    let id = UUID()
+    let url: URL
 }

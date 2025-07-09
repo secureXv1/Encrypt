@@ -2,13 +2,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 import CryptoKit
 
-struct ArchivoDescifrado: Identifiable {
-    let id = UUID()
-    let nombre: String
-    let url: URL
-    let fecha: Date
-}
-
 struct DescifrarArchivoView: View {
     @State private var mostrarFormulario = false
     @State private var archivos: [ArchivoDescifrado] = []
@@ -137,7 +130,7 @@ struct DescifrarArchivoView: View {
         guard let items = try? FileManager.default.contentsOfDirectory(at: directorio, includingPropertiesForKeys: nil) else { return }
 
         for url in items {
-            if url.lastPathComponent.contains("_descifrado") {
+            if !url.lastPathComponent.hasSuffix(".json") {
                 let atributos = try? FileManager.default.attributesOfItem(atPath: url.path)
                 let fecha = atributos?[.creationDate] as? Date ?? Date()
                 let archivo = ArchivoDescifrado(nombre: url.lastPathComponent, url: url, fecha: fecha)
@@ -170,7 +163,9 @@ struct LlavePrivada: Identifiable, Hashable {
 }
 
 struct SheetDescifrarArchivoView: View {
+    var archivo: URL? = nil
     var onDescifrado: (ArchivoDescifrado) -> Void
+
 
     @Environment(\.dismiss) var dismiss
     @State private var selectedFileURL: URL?
@@ -233,6 +228,9 @@ struct SheetDescifrarArchivoView: View {
             })
             .onAppear {
                 cargarLlavesPrivadas()
+                if selectedFileURL == nil, let archivo = archivo {
+                        selectedFileURL = archivo  // ✅ cargar automáticamente si se pasa por parámetro
+                    }
             }
             .fileImporter(
                 isPresented: $mostrarImportador,
@@ -371,16 +369,30 @@ struct SheetDescifrarArchivoView: View {
             let plaintext = try AES.GCM.open(sealed, using: aesKey)
 
             let nombreOriginal = (json["filename"] as? String) ?? "archivo"
-            let nombreBase = nombreOriginal.replacingOccurrences(of: ".json", with: "").replacingOccurrences(of: "_Cif", with: "")
+            let nombreBase = nombreOriginal.replacingOccurrences(of: ".json", with: "")
             let ext = (json["ext"] as? String) ?? (nombreOriginal as NSString).pathExtension
             let destinoDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("Encrypt_iOS")
             try FileManager.default.createDirectory(at: destinoDir, withIntermediateDirectories: true)
-            let destino = destinoDir.appendingPathComponent("\(nombreBase)_descifrado\(ext)")
+            let destino = destinoDir.appendingPathComponent(nombreBase + ext)
 
             try plaintext.write(to: destino)
 
+            // 1. Guardar archivo descifrado
             let nuevo = ArchivoDescifrado(nombre: destino.lastPathComponent, url: destino, fecha: Date())
             mensaje = "✅ Descifrado exitoso: \(nuevo.nombre)"
+
+            // 2. Guardar el archivo cifrado original en archivos_cifrados como recibido
+            let cifradoNombre = url.lastPathComponent
+            let recibido = ArchivoCifrado(nombre: cifradoNombre, fecha: Date(), esRecibido: true)
+
+            var existentes = (try? UserDefaults.standard.data(forKey: "archivos_cifrados"))
+                .flatMap { try? JSONDecoder().decode([ArchivoCifrado].self, from: $0) } ?? []
+
+            existentes.append(recibido)
+
+            if let data = try? JSONEncoder().encode(existentes) {
+                UserDefaults.standard.set(data, forKey: "archivos_cifrados")
+            }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                 onDescifrado(nuevo)
