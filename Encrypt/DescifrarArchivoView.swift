@@ -11,6 +11,10 @@ struct DescifrarArchivoView: View {
     @State private var mostrarCompartir = false
     @State private var archivoParaCompartir: URL?
     @State private var archivoParaVistaPrevia: URL?
+    @State private var archivoPendiente: ArchivoDescifrado? = nil
+    @State private var mostrarAlertaCompartir = false
+    @State private var archivoSeleccionadoParaCifrar: ArchivoDescifrado? = nil
+    @State private var mostrarSheetCifrado = false
 
     var body: some View {
         NavigationView {
@@ -66,13 +70,19 @@ struct DescifrarArchivoView: View {
                                 }
 
                                 Button {
-                                    if let temp = copiarAArchivoTemporal(archivo.url) {
-                                        compartirArchivo(temp)
-                                    }
+                                    archivoPendiente = archivo
+                                    mostrarAlertaCompartir = true
                                 } label: {
                                     Label("Compartir", systemImage: "square.and.arrow.up")
                                 }
                                 .tint(.blue)
+
+                                Button {
+                                    descargarArchivo(archivo)
+                                } label: {
+                                    Label("Descargar", systemImage: "arrow.down.circle")
+                                }
+                                .tint(.green)
                             }
                         }
                     }
@@ -88,16 +98,62 @@ struct DescifrarArchivoView: View {
             }
             .fullScreenCover(item: $archivoParaVistaPrevia) { url in
                 NavigationView {
-                    FilePreview(url: url)
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button("Cerrar") {
-                                    archivoParaVistaPrevia = nil
-                                }
+                    VStack {
+                        FilePreview(url: url)
+                            .frame(maxHeight: .infinity)
+
+                        Button(action: {
+                            archivoParaVistaPrevia = nil
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                archivoSeleccionadoParaCifrar = ArchivoDescifrado(nombre: url.lastPathComponent, url: url, fecha: Date())
+                                mostrarSheetCifrado = true
+                            }
+                        }) {
+                            Label("Cifrar archivo", systemImage: "lock.fill")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                                .padding()
+                        }
+                    }
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cerrar") {
+                                archivoParaVistaPrevia = nil
                             }
                         }
+                    }
                 }
+            }
+            .sheet(item: $archivoSeleccionadoParaCifrar) { archivo in
+                SheetFormularioCifrado(
+                    archivoURL: archivo.url,
+                    onFinish: { _ in
+                        archivoSeleccionadoParaCifrar = nil
+                    },
+                    isPresented: Binding(
+                        get: { archivoSeleccionadoParaCifrar != nil },
+                        set: { newValue in
+                            if !newValue { archivoSeleccionadoParaCifrar = nil }
+                        }
+                    )
+                )
+            }
+
+            .alert("Este archivo no está cifrado", isPresented: $mostrarAlertaCompartir) {
+                Button("Cancelar", role: .cancel) {}
+                Button("Continuar") {
+                    if let archivo = archivoPendiente,
+                       let temp = copiarAArchivoTemporal(archivo.url) {
+                        compartirArchivo(temp)
+                    }
+                    archivoPendiente = nil
+                }
+            } message: {
+                Text("¿Deseas compartirlo de todos modos?")
             }
         }
     }
@@ -154,6 +210,21 @@ struct DescifrarArchivoView: View {
             return nil
         }
     }
+    func descargarArchivo(_ archivo: ArchivoDescifrado) {
+        guard FileManager.default.fileExists(atPath: archivo.url.path) else {
+            mensaje = "❌ No se encontró el archivo."
+            return
+        }
+
+        let picker = UIDocumentPickerViewController(forExporting: [archivo.url], asCopy: true)
+
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            rootVC.present(picker, animated: true, completion: nil)
+            mensaje = "📤 Selecciona dónde guardar"
+        }
+    }
+
 }
 
 struct LlavePrivada: Identifiable, Hashable {
@@ -411,7 +482,7 @@ struct SheetDescifrarArchivoView: View {
         }
     }
 
-
+    
     func cargarLlavesPrivadas() {
         llavesPrivadas.removeAll()
 
