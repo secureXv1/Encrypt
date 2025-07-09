@@ -59,13 +59,27 @@ class FileDecryptor {
             throw NSError(domain: "Método no soportado", code: 5)
         }
 
+        guard sealedData.count >= 16 else {
+            throw NSError(domain: "Datos cifrados inválidos", code: 6)
+        }
+
         let tagRange = sealedData.index(sealedData.endIndex, offsetBy: -16)..<sealedData.endIndex
         let ciphertext = sealedData[..<tagRange.lowerBound]
         let tag = sealedData[tagRange]
 
-        let nonce = try AES.GCM.Nonce(data: iv)
+        // 🧪 Diagnóstico
+        print("🧪 DESCIFRANDO ARCHIVO")
+        print("🔐 type: \(type)")
+        print("📦 iv (hex):", iv.hexEncodedString())
+        print("📦 iv bytes count:", iv.count)
+        print("📦 ciphertext bytes:", ciphertext.count)
+        print("📦 tag bytes:", tag.count)
+        print("🔑 aesKey hex:", aesKey.withUnsafeBytes { Data($0).hexEncodedString() })
+
+        let nonce = try AES.GCM.Nonce(data: iv.prefix(12))
         let sealed = try AES.GCM.SealedBox(nonce: nonce, ciphertext: ciphertext, tag: tag)
         let plaintext = try AES.GCM.open(sealed, using: aesKey)
+        print("✅ Descifrado AES-GCM exitoso")
 
         let nombreOriginal = (json["filename"] as? String) ?? "archivo"
         let nombreBase = nombreOriginal.replacingOccurrences(of: ".json", with: "")
@@ -78,5 +92,33 @@ class FileDecryptor {
         try plaintext.write(to: destino)
 
         return ArchivoDescifrado(nombre: destino.lastPathComponent, url: destino, fecha: Date())
+    }
+}
+
+extension Data {
+    func hexEncodedString() -> String {
+        return map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+extension FileDecryptor {
+    static func detectarMetodo(url: URL) -> String? {
+        do {
+            let fileData = try Data(contentsOf: url)
+
+            let delimitador = "--BETTY-DELIM--"
+            let datos = fileData.range(of: delimitador.data(using: .utf8)!).map {
+                fileData[fileData.index(after: $0.upperBound)...]
+            } ?? fileData
+
+            guard let json = try JSONSerialization.jsonObject(with: datos) as? [String: Any],
+                  let tipo = json["type"] as? String else {
+                return nil
+            }
+
+            return tipo
+        } catch {
+            return nil
+        }
     }
 }

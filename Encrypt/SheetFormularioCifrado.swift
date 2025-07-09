@@ -231,10 +231,20 @@ struct SheetFormularioCifrado: View {
             
             // IV de 16 bytes (128 bits)
             let ivData = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
-            let nonce = try AES.GCM.Nonce(data: ivData)
+            let nonce = try AES.GCM.Nonce(data: ivData.prefix(12)) // ✅ SOLO 12 bytes
             
             // Cifrar el archivo
             let sealedBox = try AES.GCM.seal(inputData, using: aesKey, nonce: nonce)
+
+            // TEST: intenta descifrar inmediatamente para validar la clave derivada y el AES
+            do {
+                let nonceTest = try AES.GCM.Nonce(data: ivData.prefix(12))
+                let testBox = try AES.GCM.SealedBox(nonce: nonceTest, ciphertext: sealedBox.ciphertext, tag: sealedBox.tag)
+                let _ = try AES.GCM.open(testBox, using: aesKey)
+                print("✅ Test de descifrado interno exitoso")
+            } catch {
+                print("❌ Test de descifrado interno falló: \(error)")
+            }
             let cipherData = sealedBox.ciphertext + sealedBox.tag
             
             // Construir el JSON base
@@ -243,7 +253,7 @@ struct SheetFormularioCifrado: View {
                 "ext": ".\(archivoURL.pathExtension)",
                 "type": usarContraseña ? "password" : "rsa",
                 "data": cipherData.toHexString(),
-                "iv": ivData.toHexString()
+                "iv": ivData.prefix(12).toHexString()
             ]
             
             if usarContraseña {
