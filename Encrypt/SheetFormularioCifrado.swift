@@ -35,6 +35,11 @@ struct SheetFormularioCifrado: View {
     var body: some View {
         NavigationView {
             Form {
+                Section(header: Text("Archivo a cifrar")) {
+                        Text(archivoURL.lastPathComponent)
+                            .font(.body)
+                            .foregroundColor(.primary)
+                    }
                 Section(header: Text("Método de cifrado")) {
                     Picker("Método", selection: $usarContraseña) {
                         Text("Contraseña").tag(true)

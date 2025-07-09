@@ -41,7 +41,7 @@ struct CrearTextoView: View {
             List {
                 ForEach(textos) { nota in
                     Button {
-                        leerNota(nota)
+                        editarNota(nota) // ahora edita en lugar de leer
                     } label: {
                         HStack {
                             Image(systemName: "doc.text.fill")
@@ -59,11 +59,6 @@ struct CrearTextoView: View {
                         }
                     }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button {
-                            editarNota(nota)
-                        } label: {
-                            Label("Editar", systemImage: "pencil")
-                        }.tint(.orange)
                         Button(role: .destructive) {
                             eliminarNota(nota)
                         } label: {
@@ -89,25 +84,39 @@ struct CrearTextoView: View {
                 onGuardar: { nuevoNombre, nuevoContenido in
                     guard var notaActual = notaParaEditar?.nota else { return }
                     let urlOriginal = notaActual.url
-                    let urlNuevo = folder.appendingPathComponent("\(nuevoNombre).txt")
+                    let nombreFinal = nuevoNombre.hasSuffix(".txt") ? nuevoNombre : "\(nuevoNombre).txt"
+                    let urlNuevo = folder.appendingPathComponent(nombreFinal)
+
 
                     do {
-                        // Si el nombre cambió, elimina el archivo anterior
                         if urlOriginal.lastPathComponent != urlNuevo.lastPathComponent {
                             try? FileManager.default.removeItem(at: urlOriginal)
                         }
 
-                        // Escribe el nuevo contenido en la nueva ruta
                         try nuevoContenido.write(to: urlNuevo, atomically: true, encoding: .utf8)
                         cargarNotas()
                         notaParaEditar = nil
                     } catch {
                         print("❌ Error al guardar nota: \(error)")
                     }
+                },
+                onCifrar: { nombre, contenido in
+                    // Guarda primero si hace falta
+                    let nombreFinal = nombre.hasSuffix(".txt") ? nombre : "\(nombre).txt"
+                    let url = folder.appendingPathComponent(nombreFinal)
+                    do {
+                        try contenido.write(to: url, atomically: true, encoding: .utf8)
+                        cargarNotas()
+                        notaParaEditar = nil
+                        // Luego dispara la acción de cifrado
+                        notaSeleccionadaParaCifrar = TextoSimple(nombre: nombre, url: url, fecha: Date())
+                        mostrarSheetCifrado = true
+                    } catch {
+                        print("❌ Error al guardar nota para cifrar: \(error)")
+                    }
                 }
             )
         }
-
         // Lector
         .sheet(isPresented: $mostrarLector) {
             NavigationView {
