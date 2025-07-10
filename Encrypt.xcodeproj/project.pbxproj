@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		939FA92A2E2013B9001419A6 /* CryptoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 939FA9292E2013B9001419A6 /* CryptoSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		93D229FE2E18594100C5FCEB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -65,6 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				939FA92A2E2013B9001419A6 /* CryptoSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,6 +130,7 @@
 			);
 			name = Encrypt;
 			packageProductDependencies = (
+				939FA9292E2013B9001419A6 /* CryptoSwift */,
 			);
 			productName = Encrypt;
 			productReference = 93D229ED2E18593E00C5FCEB /* Encrypt.app */;
@@ -208,6 +214,9 @@
 			);
 			mainGroup = 93D229E42E18593E00C5FCEB;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				939FA9282E2013B9001419A6 /* XCRemoteSwiftPackageReference "CryptoSwift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 93D229EE2E18593E00C5FCEB /* Products */;
 			projectDirPath = "";
@@ -569,6 +578,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		939FA9282E2013B9001419A6 /* XCRemoteSwiftPackageReference "CryptoSwift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/krzyzanowskim/CryptoSwift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		939FA9292E2013B9001419A6 /* CryptoSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 939FA9282E2013B9001419A6 /* XCRemoteSwiftPackageReference "CryptoSwift" */;
+			productName = CryptoSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 93D229E52E18593E00C5FCEB /* Project object */;
 }

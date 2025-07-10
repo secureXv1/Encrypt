@@ -3,12 +3,41 @@ import SwiftUI
 struct Tunnel: Identifiable, Decodable {
     let id: Int
     let name: String
+    let fecha: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case fecha = "created_at"
+    }
+}
+
+struct TunnelDisplay: Identifiable {
+    let id: Int
+    let name: String
+    let fecha: Date
+    let esReciente: Bool
+
+    var icono: String {
+        esReciente ? "clock.arrow.circlepath" : "shield.lefthalf.fill"
+    }
+
+    var color: Color {
+        esReciente ? .green : .blue
+    }
+
+    var labelFecha: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        let fechaStr = formatter.string(from: fecha)
+        return esReciente ? "Última conexión \(fechaStr)" : "Creado en \(fechaStr)"
+    }
 }
 
 struct TunnelPanelView: View {
-    @State private var misTuneles: [Tunnel] = []
-    @State private var recientes: [Tunnel] = []
-    @State private var selectedTunnel: Tunnel? = nil
+    @State private var misTuneles: [TunnelDisplay] = []
+    @State private var recientes: [TunnelDisplay] = []
+    @State private var selectedTunnel: TunnelDisplay? = nil
     @State private var showPasswordPrompt = false
     @State private var alias = ""
     @State private var password = ""
@@ -16,13 +45,13 @@ struct TunnelPanelView: View {
     @State private var tunnelId: Int? = nil
     @State private var showCrear = false
     @State private var showConectar = false
-    @State private var modo = 0 // 0 = Mis túneles, 1 = Recientes
+    @State private var modo = 0
 
     let uuid = ClientService.shared.getOrCreateUUID()
 
     var body: some View {
         VStack {
-            // Encabezado personalizado como en EncryptionPanelView
+            // Encabezado y botón +
             HStack {
                 Text("Túneles")
                     .font(.title2).bold()
@@ -39,7 +68,7 @@ struct TunnelPanelView: View {
             }
             .padding(.horizontal)
 
-            // Selector tipo pestaña
+            // Selector
             Picker("Modo", selection: $modo) {
                 Text("Mis túneles").tag(0)
                 Text("Recientes").tag(1)
@@ -47,18 +76,23 @@ struct TunnelPanelView: View {
             .pickerStyle(SegmentedPickerStyle())
             .padding(.horizontal)
 
-            // Lista
-            List {
-                let tuneles = modo == 0 ? misTuneles : recientes
-
-                ForEach(tuneles) { tunel in
-                    TunnelCard(tunnel: tunel) {
-                        selectedTunnel = tunel
-                        showPasswordPrompt = true
+            // Lista personalizada
+            ScrollView {
+                LazyVStack(spacing: 0) { // ⬅️ Sin espacio entre tarjetas
+                    let tuneles = modo == 0 ? misTuneles : recientes
+                    ForEach(tuneles) { tunel in
+                        SwipeableTunnelCard(tunnel: tunel,
+                                            onTap: {
+                                                selectedTunnel = tunel
+                                                showPasswordPrompt = true
+                                            },
+                                            onDelete: { eliminarTunnel(tunel) },
+                                            onEdit: { editarPassword(tunel) })
+                            .padding(.horizontal, 12) // ⬅️ Bordes suaves laterales
                     }
                 }
+                .padding(.top, 8)
             }
-            .listStyle(PlainListStyle())
             .onAppear(perform: cargarTuneles)
         }
         .sheet(isPresented: $showPasswordPrompt) {
@@ -82,6 +116,15 @@ struct TunnelPanelView: View {
             }
         )
     }
+    func eliminarTunnel(_ tunnel: TunnelDisplay) {
+        print("🗑 Eliminar túnel: \(tunnel.name)")
+        // Aquí puedes agregar llamada al backend y actualizar la lista
+    }
+
+    func editarPassword(_ tunnel: TunnelDisplay) {
+        print("🔐 Editar contraseña de: \(tunnel.name)")
+        // Aquí puedes mostrar un sheet o alert para editar la contraseña
+    }
 
     func cargarTuneles() {
         guard let url = URL(string: "http://symbolsaps.ddns.net:8000/api/tuneles/\(uuid)") else { return }
@@ -93,8 +136,29 @@ struct TunnelPanelView: View {
                   let rec = json["conexiones_recientes"] as? [[String: Any]] else { return }
 
             DispatchQueue.main.async {
-                self.misTuneles = mis.compactMap { Tunnel(id: $0["id"] as? Int ?? 0, name: $0["name"] as? String ?? "") }
-                self.recientes = rec.compactMap { Tunnel(id: $0["id"] as? Int ?? 0, name: $0["name"] as? String ?? "") }
+                self.misTuneles = mis.compactMap {
+                    guard let id = $0["id"] as? Int,
+                          let name = $0["name"] as? String,
+                          let millis = $0["created_at"] as? Double
+                    else {
+                        print("❌ Error parseando túnel propio: \($0)")
+                        return nil
+                    }
+                    let fecha = Date(timeIntervalSince1970: millis / 1000)
+                    return TunnelDisplay(id: id, name: name, fecha: fecha, esReciente: false)
+                }
+
+                self.recientes = rec.compactMap {
+                    guard let id = $0["id"] as? Int,
+                          let name = $0["name"] as? String,
+                          let millis = $0["ultima_conexion"] as? Double
+                    else {
+                        print("❌ Error parseando túnel reciente: \($0)")
+                        return nil
+                    }
+                    let fecha = Date(timeIntervalSince1970: millis / 1000)
+                    return TunnelDisplay(id: id, name: name, fecha: fecha, esReciente: true)
+                }
             }
         }.resume()
     }
@@ -143,29 +207,122 @@ struct TunnelPanelView: View {
     }
 }
 
+struct SwipeableTunnelCard: View {
+    let tunnel: TunnelDisplay
+    let onTap: () -> Void
+    let onDelete: () -> Void
+    let onEdit: (() -> Void)? // Solo para "Mis túneles"
+
+    @State private var offset: CGFloat = 0
+    @GestureState private var isDragging = false
+
+    var body: some View {
+        ZStack {
+            // Fondo completo con botones visibles
+            HStack(spacing: 0) {
+                Spacer()
+
+                if !tunnel.esReciente {
+                    Button(action: { onEdit?() }) {
+                        ZStack {
+                            Color.blue
+                            Image(systemName: "key.fill")
+                                .foregroundColor(.white)
+                                .font(.system(size: 20))
+                        }
+                    }
+                    .frame(width: 60)
+                }
+
+                Button(action: onDelete) {
+                    ZStack {
+                        Color.red
+                        Image(systemName: "trash")
+                            .foregroundColor(.white)
+                            .font(.system(size: 20))
+                    }
+                }
+                .frame(width: 60)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 64)
+            .cornerRadius(10)
+            .padding(.horizontal, 12)
+
+            // Tarjeta encima
+            TunnelCard(tunnel: tunnel, onTap: onTap)
+                .offset(x: offset)
+                .gesture(
+                    DragGesture()
+                        .updating($isDragging) { _, state, _ in state = true }
+                        .onChanged { gesture in
+                            let limit = tunnel.esReciente ? -60.0 : -120.0
+                            offset = max(limit, gesture.translation.width)
+                        }
+                        .onEnded { gesture in
+                            let maxOffset = tunnel.esReciente ? -60.0 : -120.0
+                            if gesture.translation.width < -40 {
+                                offset = maxOffset
+                            } else {
+                                offset = 0
+                            }
+                        }
+                )
+        }
+        .background(Color(.systemBackground)) // Fondo para que se note la separación
+        .overlay(
+            Divider()
+                .padding(.leading, 60),
+            alignment: .bottom
+        )
+        .animation(.easeInOut(duration: 0.2), value: offset)
+    }
+}
+
+
 struct TunnelCard: View {
-    let tunnel: Tunnel
+    let tunnel: TunnelDisplay
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text(tunnel.name).font(.headline)
-                    Text("ID: \(tunnel.id)").font(.caption).foregroundColor(.gray)
+        ZStack {
+            Color(.systemGray6)
+                .cornerRadius(10)
+
+            HStack(spacing: 12) {
+                Image(systemName: "shield.lefthalf.fill")
+                    .foregroundColor(.blue)
+                    .font(.system(size: 16))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tunnel.name)
+                        .font(.subheadline).bold()
+                        .foregroundColor(.primary)
+                    Text(tunnel.labelFecha)
+                        .font(.caption2)
+                        .foregroundColor(.gray)
                 }
+
                 Spacer()
-                Image(systemName: "lock.fill")
+
+                HStack(spacing: 8) {
+                    Image(systemName: tunnel.esReciente ? "clock.arrow.circlepath" : "lock.fill")
+                        .foregroundColor(tunnel.esReciente ? .green : .orange)
+
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.gray)
+                }
+                    .font(.system(size: 14))
             }
-            .padding(8)
-            .background(Color(.systemGray6))
-            .cornerRadius(10)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
         }
+        .onTapGesture { onTap() }
     }
 }
 
 struct PasswordPromptView: View {
-    let tunnel: Tunnel
+    let tunnel: TunnelDisplay
     var onJoin: (String, String) -> Void
     @Environment(\.presentationMode) var presentationMode
     @State private var password = ""

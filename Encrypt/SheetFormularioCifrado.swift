@@ -21,15 +21,15 @@ struct SheetFormularioCifrado: View {
     
     
     let masterPublicKeyPEM = """
-    -----BEGIN PUBLIC KEY-----
-    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmwF4EDZIm66+kJZlTTiV
-    TtxAxr60j2CmxLfLBfdvuJdKadmV4i6yatfRSeS+ZGCAFBKwb+jHNNWv2VyWDyGO
-    3vWqBA4OI69jCFF1R9cOJY4bzDmxB1pB9KgfVX3HtvyMe3Zu8q7+6s6IcthHmaoK
-    xcXLKTjcsQlVb7hcWMVYaaSwyiPxtRnF/Tk42ys0eps66rM9EKi+K6/mnSzjhquS
-    XlGY+O2HxGq+H3K8kP8R6iLU09mm5Q11PBoir12wiHQ8m8NiTKzCLAOAt2CCBpyu
-    UIu1Bie1A04MPaKuvKXpnML5Ib9LGiXcjI6kvjOXhrj1dT8ES8JALGJWnohYZjkJ
-    0wIDAQAB
-    -----END PUBLIC KEY-----
+    
+    -----BEGIN RSA PUBLIC KEY-----
+    MIIBCgKCAQEAiCfktLjm9bcCMzIyGnKwZ4frVoBi2nHDuaaIsYPs3t4pL5l+Udq3
+    FO+lhKZtSCZZI54MLRqRamelnSHNpFxIUKiU34ZKiv6o+mPCtQegZ1EaoMEKOu26
+    MukDC2oFL9b5R17USZntZOGFfC8s2NPlA5zMfRheR49Ufb/4lLNGKoTql3ACzHqH
+    k05vcwQcR/isoHkWk3m4+r7HFDb4aMqjMj1N3DkKe2upeQIExdrcrBNKYZ8g/LpF
+    p2S13+C0Qlj/mvDiarJ3/c9+ekNhCnInSjFYmLLH1ZeowWeH+fZXSOAL0WIOvi+R
+    ynjvpT5BfnNGrJW9iP0QJgsw2axxOZw6GwIDAQAB
+    -----END RSA PUBLIC KEY-----
     """
     
     var body: some View {

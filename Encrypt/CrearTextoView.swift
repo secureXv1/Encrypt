@@ -51,6 +51,7 @@ struct CrearTextoView: View {
                             VStack(alignment: .leading) {
                                 Text(nota.nombre)
                                     .bold()
+                                    .foregroundColor(.white)
                                 Text("Modificada el \(formatDate(nota.fecha))")
                                     .font(.caption)
                                     .foregroundColor(.gray)
