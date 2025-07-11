@@ -59,13 +59,22 @@ class FileDecryptor {
             throw NSError(domain: "Método no soportado", code: 5)
         }
 
-        guard sealedData.count >= 16 else {
-            throw NSError(domain: "Datos cifrados inválidos", code: 6)
-        }
+        let ciphertext: Data
+        let tag: Data
 
-        let tagRange = sealedData.index(sealedData.endIndex, offsetBy: -16)..<sealedData.endIndex
-        let ciphertext = sealedData[..<tagRange.lowerBound]
-        let tag = sealedData[tagRange]
+        if let tagHex = json["tag"] as? String, let tagData = Data(hex: tagHex) {
+            // 💡 Nuevo formato: "data" y "tag" por separado
+            ciphertext = sealedData
+            tag = tagData
+        } else {
+            // 🧪 Compatibilidad: formato combinado
+            guard sealedData.count >= 16 else {
+                throw NSError(domain: "Datos cifrados inválidos", code: 6)
+            }
+            let tagRange = sealedData.index(sealedData.endIndex, offsetBy: -16)..<sealedData.endIndex
+            ciphertext = sealedData[..<tagRange.lowerBound]
+            tag = sealedData[tagRange]
+        }
 
         // 🧪 Diagnóstico
         print("🧪 DESCIFRANDO ARCHIVO")
@@ -81,17 +90,28 @@ class FileDecryptor {
         let plaintext = try AES.GCM.open(sealed, using: aesKey)
         print("✅ Descifrado AES-GCM exitoso")
 
-        let nombreOriginal = (json["filename"] as? String) ?? "archivo"
-        let nombreBase = nombreOriginal.replacingOccurrences(of: ".json", with: "")
-        let ext = (json["ext"] as? String) ?? (nombreOriginal as NSString).pathExtension
-
         let destinoDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("Encrypt_iOS")
         try FileManager.default.createDirectory(at: destinoDir, withIntermediateDirectories: true)
-        let destino = destinoDir.appendingPathComponent(nombreBase + ext)
 
-        try plaintext.write(to: destino)
+        if let contenidoJson = try? JSONSerialization.jsonObject(with: plaintext) as? [String: Any],
+           let base64 = contenidoJson["content"] as? String,
+           let decodedData = Data(base64Encoded: base64),
+           let originalName = contenidoJson["filename"] as? String {
 
-        return ArchivoDescifrado(nombre: destino.lastPathComponent, url: destino, fecha: Date())
+            let destino = destinoDir.appendingPathComponent(originalName)
+            try decodedData.write(to: destino)
+
+            return ArchivoDescifrado(nombre: destino.lastPathComponent, url: destino, fecha: Date())
+        } else {
+            // Si no es JSON, se trata como binario directo (modo compatibilidad)
+            let nombreOriginal = (json["filename"] as? String) ?? "archivo"
+            let nombreBase = nombreOriginal.replacingOccurrences(of: ".json", with: "")
+            let ext = (json["ext"] as? String) ?? (nombreOriginal as NSString).pathExtension
+            let destino = destinoDir.appendingPathComponent(nombreBase + ext)
+            try plaintext.write(to: destino)
+            
+            return ArchivoDescifrado(nombre: destino.lastPathComponent, url: destino, fecha: Date())
+        }
     }
 }
 

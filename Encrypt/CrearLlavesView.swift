@@ -23,7 +23,7 @@ enum TipoPEMKey {
 func detectarTipoClave(pem: String) -> TipoPEMKey {
     if pem.contains("BEGIN RSA PRIVATE KEY") {
         return .private
-    } else if pem.contains("BEGIN PUBLIC KEY") {
+    } else if pem.contains("BEGIN PUBLIC KEY") || pem.contains("BEGIN RSA PUBLIC KEY") {
         return .public
     }
     return .desconocido
@@ -408,7 +408,7 @@ struct CrearLlavesView: View {
             let exportable: SecKey = (tipo == .public) ? SecKeyCopyPublicKey(key)! : key
             
             if let data = SecKeyCopyExternalRepresentation(exportable, nil) as Data? {
-                let tipoStr = (tipo == .public) ? "PUBLIC KEY" : "RSA PRIVATE KEY"
+                let tipoStr = (tipo == .public) ? "RSA PUBLIC KEY" : "RSA PRIVATE KEY"
                 let pem = convertToPEM(data, type: tipoStr)
                 let nombre = "\(alias)_\(tipo == .public ? "public" : "private").pem"
                 let url = FileManager.default.temporaryDirectory.appendingPathComponent(nombre)
@@ -481,9 +481,15 @@ struct CrearLlavesView: View {
                 .filter { !$0.contains("BEGIN") && !$0.contains("END") && !$0.isEmpty }
                 .joined()
 
-            guard let data = Data(base64Encoded: base64) else {
+            guard var data = Data(base64Encoded: base64) else {
                 print("❌ Error: contenido PEM inválido (base64)")
                 return
+            }
+
+            // 🔁 Si es clave pública PKCS#1, convertir a formato X.509
+            if tipo == .public && url.lastPathComponent.contains("_public") && contenido.contains("BEGIN RSA PUBLIC KEY") {
+                print("ℹ️ Clave pública PKCS#1 detectada. Envolviendo a formato X.509")
+                data = wrapRSAPublicKeyToX509(data)
             }
 
             let keyClass = (tipo == .public) ? kSecAttrKeyClassPublic : kSecAttrKeyClassPrivate
