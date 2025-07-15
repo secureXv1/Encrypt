@@ -227,70 +227,68 @@ struct SheetFormularioCifrado: View {
     func cifrarArchivo() {
         do {
             let inputData = try Data(contentsOf: archivoURL)
-            let aesKey = SymmetricKey(size: .bits256)
-            
+
             // IV de 16 bytes (128 bits)
             let ivData = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
             let nonce = try AES.GCM.Nonce(data: ivData)
-            
-            // Cifrar el archivo
-            let sealedBox = try AES.GCM.seal(inputData, using: aesKey, nonce: nonce)
-            let cipherData = sealedBox.ciphertext + sealedBox.tag
-            
-            // Construir el JSON base
+
+            var aesKey: SymmetricKey
             var json: [String: Any] = [
                 "filename": archivoURL.lastPathComponent,
                 "ext": ".\(archivoURL.pathExtension)",
                 "type": usarContraseña ? "password" : "rsa",
-                "data": cipherData.toHexString(),
                 "iv": ivData.toHexString()
             ]
-            
+
             if usarContraseña {
-                // IVs y sales de 16 bytes
+                // Salt para derivar la clave del usuario y parámetros para la contraseña encriptada
                 let saltUser = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
                 let saltAdmin = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
-                let ivUser = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
                 let ivAdmin = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
-                
-                let keyUser = CryptoUtils.deriveKey(from: contraseña, salt: saltUser)
+
+                aesKey = CryptoUtils.deriveKey(from: contraseña, salt: saltUser)
                 let keyAdmin = CryptoUtils.deriveKey(from: "SeguraAdmin123", salt: saltAdmin)
-                
+
                 let encryptedPassword = CryptoUtils.encrypt(
                     data: contraseña.data(using: .utf8)!,
                     key: keyAdmin,
                     iv: ivAdmin
                 )
-                
+
                 json["salt_user"] = saltUser.base64EncodedString()
                 json["salt_admin"] = saltAdmin.base64EncodedString()
-                json["iv_user"] = ivUser.toHexString()
                 json["iv_admin"] = ivAdmin.toHexString()
                 json["encrypted_user_password"] = encryptedPassword.toHexString()
-                
+
             } else {
+                aesKey = SymmetricKey(size: .bits256)
                 guard let llave = llaveSeleccionada else {
                     mensaje = "❌ Llave no seleccionada"
                     return
                 }
-                
+
                 let aesKeyData = aesKey.withUnsafeBytes { Data($0) }
-                
+
                 guard let encryptedKeyUser = CryptoUtils.encryptRSA(secKey: llave.clave, data: aesKeyData) else {
                     mensaje = "❌ Error con la llave del usuario"
                     return
                 }
-                
+
                 let encryptedKeyMaster = CryptoUtils.encryptRSA(data: aesKeyData, pem: masterPublicKeyPEM)
                 if encryptedKeyMaster.isEmpty {
                     mensaje = "❌ Error con la llave maestra"
                     return
                 }
-                
+
                 json["key_user"] = encryptedKeyUser.toHexString()
                 json["key_master"] = encryptedKeyMaster.toHexString()
             }
-            
+
+            // Cifrar el archivo con la clave resultante
+            let sealedBox = try AES.GCM.seal(inputData, using: aesKey, nonce: nonce)
+            let cipherData = sealedBox.ciphertext + sealedBox.tag
+            json["data"] = cipherData.toHexString()
+
             // Guardar archivo en Documents/Encrypt_iOS
             let outDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("Encrypt_iOS")
             try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
