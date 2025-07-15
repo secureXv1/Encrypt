@@ -228,22 +228,18 @@ struct SheetFormularioCifrado: View {
         do {
             let inputData = try Data(contentsOf: archivoURL)
 
-            // IV de 16 bytes (128 bits)
-            let ivData = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
-            let nonce = try AES.GCM.Nonce(data: ivData)
-
             var aesKey: SymmetricKey
             var json: [String: Any] = [
                 "filename": archivoURL.lastPathComponent,
                 "ext": ".\(archivoURL.pathExtension)",
-                "type": usarContraseña ? "password" : "rsa",
-                "iv": ivData.toHexString()
+                "type": usarContraseña ? "password" : "rsa"
             ]
-
+            
             if usarContraseña {
-                // Salt para derivar la clave del usuario y parámetros para la contraseña encriptada
+                // IVs y sales de 16 bytes
                 let saltUser = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
                 let saltAdmin = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
+                let ivUser = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
                 let ivAdmin = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
 
                 aesKey = CryptoUtils.deriveKey(from: contraseña, salt: saltUser)
@@ -257,9 +253,10 @@ struct SheetFormularioCifrado: View {
 
                 json["salt_user"] = saltUser.base64EncodedString()
                 json["salt_admin"] = saltAdmin.base64EncodedString()
+                json["iv_user"] = ivUser.toHexString()
                 json["iv_admin"] = ivAdmin.toHexString()
                 json["encrypted_user_password"] = encryptedPassword.toHexString()
-
+                
             } else {
                 aesKey = SymmetricKey(size: .bits256)
                 guard let llave = llaveSeleccionada else {
@@ -284,10 +281,16 @@ struct SheetFormularioCifrado: View {
                 json["key_master"] = encryptedKeyMaster.toHexString()
             }
 
-            // Cifrar el archivo con la clave resultante
+            // IV de 16 bytes (128 bits)
+            let ivData = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
+            let nonce = try AES.GCM.Nonce(data: ivData)
+
+            // Cifrar el archivo
             let sealedBox = try AES.GCM.seal(inputData, using: aesKey, nonce: nonce)
             let cipherData = sealedBox.ciphertext + sealedBox.tag
+
             json["data"] = cipherData.toHexString()
+            json["iv"] = ivData.toHexString()
 
             // Guardar archivo en Documents/Encrypt_iOS
             let outDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("Encrypt_iOS")
