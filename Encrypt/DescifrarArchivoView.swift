@@ -311,8 +311,8 @@ struct SheetDescifrarArchivoView: View {
                     return
                 }
 
-                guard let saltBase64 = json["salt_user"] as? String,
-                      let salt = Data(base64Encoded: saltBase64) else {
+                guard let saltHex = json["salt_user"] as? String,
+                      let salt = Data(hex: saltHex) else {
                     mensaje = "❌ Faltan datos de contraseña"
                     return
                 }

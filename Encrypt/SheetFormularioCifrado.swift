@@ -251,8 +251,8 @@ struct SheetFormularioCifrado: View {
                     iv: ivAdmin
                 )
 
-                json["salt_user"] = saltUser.base64EncodedString()
-                json["salt_admin"] = saltAdmin.base64EncodedString()
+                json["salt_user"] = saltUser.toHexString()
+                json["salt_admin"] = saltAdmin.toHexString()
                 json["iv_user"] = ivUser.toHexString()
                 json["iv_admin"] = ivAdmin.toHexString()
                 json["encrypted_user_password"] = encryptedPassword.toHexString()
