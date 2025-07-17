@@ -31,12 +31,16 @@ class FileDecryptor {
         let aesKey: SymmetricKey
 
         if type == "password" {
-            guard let saltBase64 = json["salt_user"] as? String,
-                  let salt = Data(base64Encoded: saltBase64),
+            guard let saltString = json["salt_user"] as? String,
                   let password = password else {
                 throw NSError(domain: "Faltan datos de contraseña", code: 2)
             }
-            aesKey = CryptoUtils.deriveKey(from: password, salt: salt)
+            // Compatibilidad: intentar primero como hexadecimal y luego como Base64
+            let salt = Data(hex: saltString) ?? Data(base64Encoded: saltString)
+            guard let finalSalt = salt else {
+                throw NSError(domain: "Salt inválido", code: 2)
+            }
+            aesKey = CryptoUtils.deriveKey(from: password, salt: finalSalt)
         } else if type == "rsa" {
             guard let privateKey = privateKey,
                   let keyHex = json["key_user"] as? String,

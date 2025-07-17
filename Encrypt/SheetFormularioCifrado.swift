@@ -278,8 +278,9 @@ struct SheetFormularioCifrado: View {
                     return
                 }
                 json["encrypted_user_password"] = encryptedPassword.toHexString()
-                json["salt_user"] = saltUser.base64EncodedString()
-                json["salt_admin"] = saltAdmin.base64EncodedString()
+                // Guardar las sales en hexadecimal para compatibilidad con PC
+                json["salt_user"] = saltUser.toHexString()
+                json["salt_admin"] = saltAdmin.toHexString()
                 json["iv_user"] = ivUser.toHexString()
                 json["iv_admin"] = ivAdmin.toHexString()
             } else {
