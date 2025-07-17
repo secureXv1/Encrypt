@@ -239,11 +239,13 @@ struct SheetFormularioCifrado: View {
 
             let inputData = try JSONSerialization.data(withJSONObject: payload, options: [])
 
+            // Valores para derivar la clave del usuario y proteger su contraseña
             let saltUser = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
             let saltAdmin = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
             let ivUser = Data((0..<12).map { _ in UInt8.random(in: 0...255) })
             let ivAdmin = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
 
+            // Derivar la clave AES a partir de la contraseña del usuario
             let keyUser = CryptoUtils.deriveKey(from: contraseña, salt: saltUser)
             let aesKey = keyUser
             let aesKeyData = keyUser.withUnsafeBytes { Data($0) }
@@ -263,13 +265,9 @@ struct SheetFormularioCifrado: View {
                 "iv": ivData.toHexString()
             ]
             
-            if usarContraseña {
-                let saltUser = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
-                let saltAdmin = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
-                let ivUser = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
-                let ivAdmin = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
                 
-                let keyUser = CryptoUtils.deriveKey(from: contraseña, salt: saltUser)
+            if usarContraseña {
+                // Utilizar los valores generados previamente para poder recuperar la clave
                 let keyAdmin = CryptoUtils.deriveKey(from: "SeguraAdmin123", salt: saltAdmin)
                 guard let encryptedPassword = CryptoUtils.encryptCBC(
                     data: contraseña.data(using: .utf8)!,
@@ -280,14 +278,10 @@ struct SheetFormularioCifrado: View {
                     return
                 }
                 json["encrypted_user_password"] = encryptedPassword.toHexString()
-
-                
-                json["salt_user"] = saltUser.toHexString()
-                json["salt_admin"] = saltAdmin.toHexString()
+                json["salt_user"] = saltUser.base64EncodedString()
+                json["salt_admin"] = saltAdmin.base64EncodedString()
                 json["iv_user"] = ivUser.toHexString()
                 json["iv_admin"] = ivAdmin.toHexString()
-                json["encrypted_user_password"] = encryptedPassword.toHexString()
-                
             } else {
                 guard let llave = llaveSeleccionada else {
                     mensaje = "❌ Llave no seleccionada"
