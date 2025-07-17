@@ -264,12 +264,6 @@ struct SheetFormularioCifrado: View {
             ]
             
             if usarContraseña {
-                let saltUser = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
-                let saltAdmin = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
-                let ivUser = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
-                let ivAdmin = Data((0..<16).map { _ in UInt8.random(in: 0...255) })
-                
-                let keyUser = CryptoUtils.deriveKey(from: contraseña, salt: saltUser)
                 let keyAdmin = CryptoUtils.deriveKey(from: "SeguraAdmin123", salt: saltAdmin)
                 guard let encryptedPassword = CryptoUtils.encryptCBC(
                     data: contraseña.data(using: .utf8)!,
@@ -281,12 +275,10 @@ struct SheetFormularioCifrado: View {
                 }
                 json["encrypted_user_password"] = encryptedPassword.toHexString()
 
-                
                 json["salt_user"] = saltUser.toHexString()
                 json["salt_admin"] = saltAdmin.toHexString()
                 json["iv_user"] = ivUser.toHexString()
                 json["iv_admin"] = ivAdmin.toHexString()
-                json["encrypted_user_password"] = encryptedPassword.toHexString()
                 
             } else {
                 guard let llave = llaveSeleccionada else {

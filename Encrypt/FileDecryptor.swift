@@ -31,8 +31,8 @@ class FileDecryptor {
         let aesKey: SymmetricKey
 
         if type == "password" {
-            guard let saltBase64 = json["salt_user"] as? String,
-                  let salt = Data(base64Encoded: saltBase64),
+            guard let saltHex = json["salt_user"] as? String,
+                  let salt = Data(hex: saltHex),
                   let password = password else {
                 throw NSError(domain: "Faltan datos de contraseña", code: 2)
             }
